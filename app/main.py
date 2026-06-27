@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
@@ -38,8 +38,6 @@ app.add_middleware(
 # Startup event to ensure tables exist AND create admin
 @app.on_event("startup")
 async def startup_event():
-    from app.database import SessionLocal
-    from app.models.user import User
     from app.utils.password import get_password_hash
     
     print("Starting up...")
@@ -149,11 +147,12 @@ async def get_alerts():
     finally:
         db.close()
 
-# ✅ ADMIN CREATION ENDPOINT (Optional - keep for manual creation)
+# ============================================================
+# ADMIN CREATION ENDPOINT (Optional - for manual creation)
+# ============================================================
+
 @app.post("/api/v1/create-admin")
 async def create_admin():
-    from app.database import SessionLocal
-    from app.models.user import User
     from app.utils.password import get_password_hash
     
     db = SessionLocal()
@@ -178,7 +177,6 @@ async def create_admin():
     finally:
         db.close()
 
-# ONLY ONE if __name__ == "__main__" block at the VERY END
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
