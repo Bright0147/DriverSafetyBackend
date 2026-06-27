@@ -13,6 +13,9 @@ from app.routers import auth
 from app.routers import users
 from app.routers import trips
 
+# Import password functions
+from app.utils.password import hash_password
+
 # Create database tables
 create_tables()
 
@@ -22,7 +25,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# ✅ THEN REGISTER ROUTERS (AFTER app is created)
+# ✅ THEN REGISTER ROUTERS (ONLY ONCE, AFTER app is created)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(trips.router)
@@ -39,8 +42,6 @@ app.add_middleware(
 # Startup event to ensure tables exist AND create admin
 @app.on_event("startup")
 async def startup_event():
-    from app.utils.password import hash_password
-    
     print("Starting up...")
     create_tables()
     print("Database tables created/verified")
@@ -53,7 +54,7 @@ async def startup_event():
             admin = User(
                 username="admin",
                 email="admin@driversafety.com",
-                full_name="System Administrator",
+                full_name="Admin",
                 hashed_password=hash_password("admin123"),
                 is_admin=True
             )
@@ -165,7 +166,7 @@ async def create_admin():
         admin = User(
             username="admin",
             email="admin@driversafety.com",
-            full_name="System Administrator",
+            full_name="Admin",
             hashed_password=hash_password("admin123"),
             is_admin=True
         )
