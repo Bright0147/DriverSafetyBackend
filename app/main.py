@@ -12,7 +12,10 @@ from app.models.alert import Alert
 from app.routers import auth
 from app.routers import users
 from app.routers import trips
-
+# Register routers
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(trips.router)
 # Import password functions
 from app.utils.password import hash_password
 
