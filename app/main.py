@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
-from app.database import engine, Base, SessionLocal
+from app.database import engine, Base, SessionLocal, create_tables
 from app.models.user import User
 from app.models.trip import Trip
 from app.models.alert import Alert
@@ -14,7 +14,7 @@ from app.routers import users
 from app.routers import trips
 
 # Create database tables
-Base.metadata.create_all(bind=engine)
+create_tables()
 
 app = FastAPI(
     title="Driver Safety API",
@@ -35,6 +35,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Optional: Startup event to ensure tables exist
+@app.on_event("startup")
+async def startup_event():
+    print("Starting up...")
+    create_tables()
+    print("Database tables created/verified")
+
 def parse_datetime(date_string):
     if not date_string:
         return None
@@ -54,10 +61,6 @@ async def health():
     return {"status": "healthy"}
 
 # ============================================================
-# REMOVED THE REDIRECT - NO MORE LOOP!
-# ============================================================
-
-# ============================================================
 # ALERTS ENDPOINTS
 # ============================================================
 
@@ -66,21 +69,21 @@ async def create_alerts(request: Request):
     db = SessionLocal()
     try:
         data = await request.json()
-        
+
         if isinstance(data, list):
             alerts = data
         elif isinstance(data, dict) and "alerts" in data:
             alerts = data["alerts"]
         else:
             alerts = []
-        
+
         created_count = 0
         for alert_data in alerts:
             timestamp = parse_datetime(alert_data.get("timestamp"))
-            
+
             # FIX: Add user_id
             new_alert = Alert(
-                user_id=alert_data.get("user_id"),  # ← ADD THIS LINE
+                user_id=alert_data.get("user_id"),  
                 trip_id=alert_data.get("trip_id"),
                 alert_type=alert_data.get("alert_type"),
                 severity=alert_data.get("severity"),
@@ -88,7 +91,7 @@ async def create_alerts(request: Request):
             )
             db.add(new_alert)
             created_count += 1
-        
+
         db.commit()
         return {"message": f"{created_count} alerts saved", "success": True}
     except Exception as e:
@@ -108,7 +111,7 @@ async def get_alerts():
         return [
             {
                 "id": a.id,
-                "user_id": a.user_id,  # ← ADD THIS
+                "user_id": a.user_id,  
                 "trip_id": a.trip_id,
                 "alert_type": a.alert_type,
                 "severity": a.severity,
@@ -119,6 +122,49 @@ async def get_alerts():
     finally:
         db.close()
 
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )
+
+
+
+    # ... your existing code ...
+
+# ✅ ADD THIS RIGHT BEFORE THE LAST LINE
+@app.post("/api/v1/create-admin")
+async def create_admin():
+    from app.database import SessionLocal
+    from app.models.user import User
+    from app.utils.password import get_password_hash
+    
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.username == "admin").first()
+        if admin:
+            return {"message": "Admin already exists", "username": admin.username}
+        
+        admin = User(
+            username="admin",
+            email="admin@driversafety.com",
+            full_name="Admin",
+            hashed_password=get_password_hash("admin123"),
+            is_admin=True
+        )
+        db.add(admin)
+        db.commit()
+        return {"message": "✅ Admin created!", "username": "admin", "password": "admin123"}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+# YOUR EXISTING CODE AT THE BOTTOM
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
