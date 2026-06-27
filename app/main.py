@@ -13,6 +13,9 @@ from app.routers import auth
 from app.routers import users
 from app.routers import trips
 
+# Import password functions
+from app.utils.password import hash_password
+
 # Create database tables
 create_tables()
 
@@ -38,8 +41,6 @@ app.add_middleware(
 # Startup event to ensure tables exist AND create admin
 @app.on_event("startup")
 async def startup_event():
-    from app.utils.password import get_password_hash
-    
     print("Starting up...")
     create_tables()
     print("Database tables created/verified")
@@ -53,7 +54,7 @@ async def startup_event():
                 username="admin",
                 email="admin@driversafety.com",
                 full_name="Admin",
-                hashed_password=get_password_hash("admin123"),
+                hashed_password=hash_password("admin123"),  # Use hash_password
                 is_admin=True
             )
             db.add(admin)
@@ -153,7 +154,7 @@ async def get_alerts():
 
 @app.post("/api/v1/create-admin")
 async def create_admin():
-    from app.utils.password import get_password_hash
+    from app.utils.password import hash_password
     
     db = SessionLocal()
     try:
@@ -165,7 +166,7 @@ async def create_admin():
             username="admin",
             email="admin@driversafety.com",
             full_name="Admin",
-            hashed_password=get_password_hash("admin123"),
+            hashed_password=hash_password("admin123"),  # Use hash_password
             is_admin=True
         )
         db.add(admin)
