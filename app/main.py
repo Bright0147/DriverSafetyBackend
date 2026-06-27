@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
@@ -12,6 +12,12 @@ from app.models.alert import Alert
 from app.routers import auth
 from app.routers import users
 from app.routers import trips
+# Register routers
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(trips.router)
+# Import password functions
+from app.utils.password import hash_password
 
 # Create database tables
 create_tables()
@@ -35,12 +41,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Optional: Startup event to ensure tables exist
+# Startup event to ensure tables exist AND create admin
 @app.on_event("startup")
 async def startup_event():
     print("Starting up...")
     create_tables()
     print("Database tables created/verified")
+    
+    # Auto-create admin user on startup
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.username == "admin").first()
+        if not admin:
+            admin = User(
+                username="admin",
+                email="admin@driversafety.com",
+                full_name="Admin",
+                hashed_password=hash_password("admin123"),  # Use hash_password
+                is_admin=True
+            )
+            db.add(admin)
+            db.commit()
+            print("✅ Admin created automatically on startup!")
+            print("Username: admin")
+            print("Password: admin123")
+        else:
+            print("ℹ️ Admin already exists")
+    except Exception as e:
+        print(f"Error creating admin: {e}")
+    finally:
+        db.close()
 
 def parse_datetime(date_string):
     if not date_string:
@@ -81,7 +111,6 @@ async def create_alerts(request: Request):
         for alert_data in alerts:
             timestamp = parse_datetime(alert_data.get("timestamp"))
 
-            # FIX: Add user_id
             new_alert = Alert(
                 user_id=alert_data.get("user_id"),  
                 trip_id=alert_data.get("trip_id"),
@@ -122,25 +151,13 @@ async def get_alerts():
     finally:
         db.close()
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True
-    )
+# ============================================================
+# ADMIN CREATION ENDPOINT (Optional - for manual creation)
+# ============================================================
 
-
-
-    # ... your existing code ...
-
-# ✅ ADD THIS RIGHT BEFORE THE LAST LINE
 @app.post("/api/v1/create-admin")
 async def create_admin():
-    from app.database import SessionLocal
-    from app.models.user import User
-    from app.utils.password import get_password_hash
+    from app.utils.password import hash_password
     
     db = SessionLocal()
     try:
@@ -152,7 +169,7 @@ async def create_admin():
             username="admin",
             email="admin@driversafety.com",
             full_name="Admin",
-            hashed_password=get_password_hash("admin123"),
+            hashed_password=hash_password("admin123"),  # Use hash_password
             is_admin=True
         )
         db.add(admin)
@@ -164,7 +181,6 @@ async def create_admin():
     finally:
         db.close()
 
-# YOUR EXISTING CODE AT THE BOTTOM
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
