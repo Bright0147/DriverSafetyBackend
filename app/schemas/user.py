@@ -6,6 +6,7 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     email: str
-    is_admin: bool = False
+    role: str = "driver"  #  Add role field with default
+    is_admin: bool = False  # Keep for compatibility
     phone_number: Optional[str] = None
     driver_license: Optional[str] = None
