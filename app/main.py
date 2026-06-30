@@ -30,6 +30,7 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(trips.router)
+app.include_router(password_reset.router)  # ✅ ADD THIS LINE
 
 # CORS
 app.add_middleware(
@@ -47,6 +48,30 @@ async def startup_event():
     create_tables()
     print("Database tables created/verified")
     
+    # ✅ Auto-add reset_token columns if missing
+    db = SessionLocal()
+    try:
+        from sqlalchemy import text
+        try:
+            db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR NULL"))
+            db.commit()
+            print("✅ reset_token column added/verified")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower():
+                print(f"Note: {e}")
+        
+        try:
+            db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP NULL"))
+            db.commit()
+            print("✅ reset_token_expiry column added/verified")
+        except Exception as e:
+            if "duplicate column" not in str(e).lower():
+                print(f"Note: {e}")
+    except Exception as e:
+        print(f"Column check: {e}")
+    finally:
+        db.close()
+    
     # Auto-create admin user on startup
     db = SessionLocal()
     try:
@@ -58,7 +83,7 @@ async def startup_event():
                 full_name="System Administrator",
                 hashed_password=hash_password("admin123"),
                 is_admin=True,
-                role="admin"  # ✅ FIXED: Set role to admin
+                role="admin"
             )
             db.add(admin)
             db.commit()
@@ -212,7 +237,7 @@ async def create_admin():
             full_name="System Administrator",
             hashed_password=hash_password("admin123"),
             is_admin=True,
-            role="admin"  # ✅ FIXED: Set role to admin
+            role="admin"
         )
         db.add(admin)
         db.commit()
