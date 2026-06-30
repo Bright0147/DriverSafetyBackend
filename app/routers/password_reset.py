@@ -10,10 +10,6 @@ import os
 
 router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
 
-# Store reset tokens (in production, use Redis or database)
-# For Render free tier, this works but tokens reset on restart
-reset_tokens = {}
-
 class ForgotPasswordRequest(BaseModel):
     email: str
 
@@ -23,7 +19,7 @@ class ResetPasswordRequest(BaseModel):
 
 @router.post("/forgot-password")
 async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    """Request password reset - sends reset link to email"""
+    """Request password reset - stores token in database"""
     user = db.query(User).filter(User.email == request.email).first()
     
     # Always return success (security: don't reveal if email exists)
@@ -33,7 +29,11 @@ async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(
     # Generate reset token (expires in 1 hour)
     token = secrets.token_urlsafe(32)
     expiry = datetime.utcnow() + timedelta(hours=1)
-    reset_tokens[token] = {"user_id": user.id, "expiry": expiry}
+    
+    # Save token to database
+    user.reset_token = token
+    user.reset_token_expiry = expiry
+    db.commit()
     
     # In production, send email here
     # For now, return token in response (for testing)
@@ -48,17 +48,22 @@ async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(
 
 @router.post("/reset-password")
 async def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
-    """Reset password using token"""
-    token_data = reset_tokens.get(request.token)
+    """Reset password using token from database"""
+    # Find user by token
+    user = db.query(User).filter(User.reset_token == request.token).first()
     
-    if not token_data:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="Invalid or expired token"
         )
     
-    if datetime.utcnow() > token_data["expiry"]:
-        del reset_tokens[request.token]
+    # Check if token is expired
+    if user.reset_token_expiry and datetime.utcnow() > user.reset_token_expiry:
+        # Clear expired token
+        user.reset_token = None
+        user.reset_token_expiry = None
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="Token expired"
@@ -66,18 +71,11 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     
     # Update password
     try:
-        user = db.query(User).filter(User.id == token_data["user_id"]).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail="User not found"
-            )
-        
         user.hashed_password = hash_password(request.new_password)
+        # Clear the used token
+        user.reset_token = None
+        user.reset_token_expiry = None
         db.commit()
-        
-        # Delete used token
-        del reset_tokens[request.token]
         
         return {"message": "Password reset successfully", "success": True}
     except Exception as e:
@@ -86,18 +84,20 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
             status_code=status.HTTP_500_INTERNAL_ERROR, 
             detail=str(e)
         )
-    finally:
-        db.close()
 
 @router.get("/verify-token/{token}")
-async def verify_token(token: str):
+async def verify_token(token: str, db: Session = Depends(get_db)):
     """Verify if a token is valid (for the reset page)"""
-    token_data = reset_tokens.get(token)
+    user = db.query(User).filter(User.reset_token == token).first()
     
-    if not token_data:
+    if not user:
         return {"valid": False, "message": "Invalid token"}
     
-    if datetime.utcnow() > token_data["expiry"]:
+    if user.reset_token_expiry and datetime.utcnow() > user.reset_token_expiry:
+        # Clear expired token
+        user.reset_token = None
+        user.reset_token_expiry = None
+        db.commit()
         return {"valid": False, "message": "Token expired"}
     
     return {"valid": True, "message": "Token is valid"}
