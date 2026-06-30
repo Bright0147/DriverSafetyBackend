@@ -26,6 +26,12 @@ class User(Base):
     synced = Column(Boolean, default=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    # ============================================================
+    # PASSWORD RESET FIELDS - For better persistence
+    # ============================================================
+    reset_token = Column(String, nullable=True)  # Stores the reset token
+    reset_token_expiry = Column(DateTime, nullable=True)  # Token expiration time
+
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime)
