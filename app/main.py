@@ -12,6 +12,7 @@ from app.models.alert import Alert
 from app.routers import auth
 from app.routers import users
 from app.routers import trips
+from app.routers import password_reset
 
 # Import password functions
 from app.utils.password import hash_password
