@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
@@ -87,7 +87,7 @@ async def create_user(
         full_name=user.full_name,
         hashed_password=hash_password(user.password),
         role=user.role,
-        is_admin=(user.role == "admin"),
+        is_admin=(user.role == "admin"),  # ✅ Auto-set based on role
         phone_number=user.phone_number,
         driver_license=user.driver_license,
         status="active"
