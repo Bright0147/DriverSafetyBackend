@@ -30,7 +30,7 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(trips.router)
-app.include_router(password_reset.router)
+app.include_router(password_reset.router)  # ✅ ADD THIS LINE
 
 # CORS
 app.add_middleware(
@@ -277,95 +277,6 @@ async def debug_users():
             ]
         }
     except Exception as e:
-        return {"error": str(e)}
-    finally:
-        db.close()
-
-# ============================================================
-# DATABASE CLEANUP - KEEP ONLY ADMIN
-# ============================================================
-
-@app.post("/api/v1/debug/clean-database")
-async def clean_database():
-    """
-    Clean database - KEEP ONLY ADMIN user.
-    Delete all other users (drivers, test users, etc.)
-    """
-    db = SessionLocal()
-    try:
-        # Only keep the admin user
-        keep_identifiers = [
-            "admin@driversafety.com",
-            "admin"
-        ]
-        
-        kept_users = []
-        deleted_count = 0
-        all_users = db.query(User).all()
-        
-        for user in all_users:
-            should_keep = (
-                user.email in keep_identifiers or 
-                user.username in keep_identifiers
-            )
-            
-            if should_keep:
-                kept_users.append({
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "role": user.role
-                })
-            else:
-                db.delete(user)
-                deleted_count += 1
-        
-        db.commit()
-        
-        return {
-            "message": f"✅ Database cleaned! Removed {deleted_count} users",
-            "kept_users": kept_users,
-            "admin_credentials": {
-                "username": "admin",
-                "password": "admin123"
-            }
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e)}
-    finally:
-        db.close()
-
-
-@app.post("/api/v1/debug/delete-user")
-async def delete_user_by_email(email: str):
-    """
-    Delete a specific user by email.
-    """
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            return {"error": f"User with email {email} not found"}
-        
-        # Prevent deleting the main admin
-        if user.username == "admin" or user.email == "admin@driversafety.com":
-            return {"error": "Cannot delete the main admin user"}
-        
-        db.delete(user)
-        db.commit()
-        
-        return {
-            "message": f"✅ User {email} deleted successfully",
-            "deleted_user": {
-                "username": user.username,
-                "email": user.email,
-                "role": user.role
-            }
-        }
-    except Exception as e:
-        db.rollback()
         return {"error": str(e)}
     finally:
         db.close()
