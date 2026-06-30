@@ -54,19 +54,46 @@ async def startup_event():
             admin = User(
                 username="admin",
                 email="admin@driversafety.com",
-                full_name="Admin",
+                full_name="System Administrator",
                 hashed_password=hash_password("admin123"),
-                is_admin=True
+                is_admin=True,
+                role="admin"  # ✅ FIXED: Set role to admin
             )
             db.add(admin)
             db.commit()
             print("✅ Admin created automatically on startup!")
             print("Username: admin")
             print("Password: admin123")
+            print("Role: admin")
         else:
+            # Fix existing admin if role is wrong
+            if admin.role != "admin":
+                admin.role = "admin"
+                admin.is_admin = True
+                db.commit()
+                print("✅ Fixed admin role to 'admin'")
             print("ℹ️ Admin already exists")
+            
+        # Also create a test driver if needed
+        driver = db.query(User).filter(User.username == "driver").first()
+        if not driver:
+            driver = User(
+                username="driver",
+                email="driver@driversafety.com",
+                full_name="Test Driver",
+                hashed_password=hash_password("driver123"),
+                is_admin=False,
+                role="driver"
+            )
+            db.add(driver)
+            db.commit()
+            print("✅ Test driver created!")
+            print("Username: driver")
+            print("Password: driver123")
+            
     except Exception as e:
-        print(f"Error creating admin: {e}")
+        print(f"Error seeding database: {e}")
+        db.rollback()
     finally:
         db.close()
 
@@ -150,7 +177,7 @@ async def get_alerts():
         db.close()
 
 # ============================================================
-# ADMIN CREATION ENDPOINT (Optional - for manual creation)
+# ADMIN CREATION ENDPOINT - FIXES EXISTING ADMINS TOO
 # ============================================================
 
 @app.post("/api/v1/create-admin")
@@ -161,20 +188,69 @@ async def create_admin():
     try:
         admin = db.query(User).filter(User.username == "admin").first()
         if admin:
-            return {"message": "Admin already exists", "username": admin.username}
+            # Fix existing admin if role is wrong
+            if admin.role != "admin":
+                admin.role = "admin"
+                admin.is_admin = True
+                db.commit()
+                return {
+                    "message": "✅ Admin role fixed!", 
+                    "username": admin.username, 
+                    "role": admin.role,
+                    "is_admin": admin.is_admin
+                }
+            return {
+                "message": "Admin already exists", 
+                "username": admin.username, 
+                "role": admin.role
+            }
         
         admin = User(
             username="admin",
             email="admin@driversafety.com",
-            full_name="Admin",
+            full_name="System Administrator",
             hashed_password=hash_password("admin123"),
-            is_admin=True
+            is_admin=True,
+            role="admin"  # ✅ FIXED: Set role to admin
         )
         db.add(admin)
         db.commit()
-        return {"message": "✅ Admin created!", "username": "admin", "password": "admin123"}
+        return {
+            "message": "✅ Admin created!", 
+            "username": "admin", 
+            "password": "admin123",
+            "role": "admin"
+        }
     except Exception as e:
         db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+# ============================================================
+# DEBUG ENDPOINT - Check user roles
+# ============================================================
+
+@app.get("/api/v1/debug/users")
+async def debug_users():
+    db = SessionLocal()
+    try:
+        users = db.query(User).all()
+        return {
+            "total": len(users),
+            "users": [
+                {
+                    "id": u.id,
+                    "username": u.username,
+                    "email": u.email,
+                    "is_admin": u.is_admin,
+                    "role": getattr(u, 'role', 'MISSING'),
+                    "full_name": u.full_name
+                }
+                for u in users
+            ]
+        }
+    except Exception as e:
         return {"error": str(e)}
     finally:
         db.close()
