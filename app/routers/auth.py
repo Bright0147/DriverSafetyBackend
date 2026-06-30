@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.utils.password import verify_password
-from app.auth.dependencies import create_access_token  # ✅ Correct import
+from app.auth.dependencies import create_access_token
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/auth", tags=["authentication"])
@@ -38,6 +38,8 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     print(f"User found: {user.username}")
+    print(f"User role: {user.role}")
+    print(f"User is_admin: {user.is_admin}")
     
     result = verify_password(request.password, user.hashed_password)
     print(f"Verify result: {result}")
@@ -46,10 +48,20 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         print("Password mismatch - rejecting")
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    # Create JWT token
-    access_token = create_access_token(data={"sub": str(user.id)})
+    # Create JWT token with role
+    access_token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "role": user.role if user.role else ("admin" if user.is_admin else "driver")
+        }
+    )
+    
+    # Determine role - ensure it's correct
+    user_role = user.role if user.role else ("admin" if user.is_admin else "driver")
     
     print("Login successful")
+    print(f"Returning role: {user_role}")
+    
     return LoginResponse(
         success=True,
         user_id=user.id,
@@ -57,7 +69,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         full_name=user.full_name or user.username,
         email=user.email,
         is_admin=user.is_admin,
-        role=user.role if hasattr(user, 'role') else ("admin" if user.is_admin else "driver"),
+        role=user_role,
         access_token=access_token,
         token_type="bearer",
         message="Login successful"
