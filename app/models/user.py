@@ -20,7 +20,7 @@ class User(Base):
     phone_number = Column(String)
     vehicle_id = Column(String)
 
-    # NEW FIELDS FOR ROLE MANAGEMENT
+    # ROLE MANAGEMENT - IMPORTANT
     role = Column(String, default="driver")  # "admin" or "driver"
     status = Column(String, default="active")  # "active", "inactive", "suspended"
     synced = Column(Boolean, default=False)
